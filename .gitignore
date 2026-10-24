@@ -5,3 +5,5 @@ app-release/
 app-debug/
 *.log
 .vscode/
+*.log
+.vscode/
