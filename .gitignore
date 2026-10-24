@@ -3,3 +3,5 @@ keystore.txt
 *.apk
 app-release/
 app-debug/
+*.log
+.vscode/
