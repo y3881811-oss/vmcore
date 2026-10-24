@@ -1,2 +1,5 @@
 *.jks
 keystore.txt
+*.apk
+app-release/
+app-debug/
