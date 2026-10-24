@@ -26,8 +26,11 @@ jobs:
       - name: Setup Android SDK and NDK
         uses: android-actions/setup-android@v3
 
+      # 核心修复：利用 yes | 自动输入 y 接受协议，然后再安装
       - name: Install NDK and CMake
-        run: sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -45,7 +48,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      # 智能判断触发方式，动态命名
       - name: Set Version Variables
         run: |
           if [ "${{ github.event_name }}" == "schedule" ]; then
@@ -76,7 +78,6 @@ jobs:
           name: app-release-${{ env.SUFFIX }}
           path: app/build/outputs/apk/release/VMCore-*.apk
 
-      # 只有定时、手动、或者推送 Tag 时才发 Release
       - name: Create Release
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
