@@ -1,14 +1,17 @@
-name: Android Build
+name: Android Build & Release
 
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'app/**'
-      - '*.gradle.kts'
-      - 'gradle.properties'
-      - '.github/workflows/android.yml'
+    tags:
+      - 'v*'
+  # 定时触发：每天 UTC 12:00 (北京时间 20:00)
+  schedule:
+    - cron: '0 12 * * *'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,6 +24,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
@@ -28,8 +37,7 @@ jobs:
       - name: Decode Keystore
         env:
           ENCODED_STRING: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          echo $ENCODED_STRING | base64 -d > app/release.jks
+        run: echo $ENCODED_STRING | base64 -d > app/release.jks
 
       - name: Build Release APK
         env:
@@ -38,7 +46,33 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
+      # 动态命名 APK 和 Tag 名字
+      - name: Rename and Set Tag
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            SUFFIX="daily-$(date +'%Y%m%d')"
+            TAG_NAME="v-${SUFFIX}"
+          else
+            SUFFIX="${{ github.ref_name }}"
+            TAG_NAME="${{ github.ref_name }}"
+          fi
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/VMCore-${SUFFIX}.apk
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "SUFFIX=${SUFFIX}" >> $GITHUB_ENV
+
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          name: app-release-${{ env.SUFFIX }}
+          path: app/build/outputs/apk/release/VMCore-*.apk
+
+      # 只有在推送 tag 或定时任务时才发布 Release
+      - name: Create Release
+        if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ github.event_name == 'schedule' && format('每日自动构建 {0}', env.SUFFIX) || env.TAG_NAME }}
+          files: app/build/outputs/apk/release/VMCore-*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ github.event_name == 'schedule' }}
