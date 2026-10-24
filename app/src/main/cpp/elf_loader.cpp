@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstring>
+#include <cstdlib> // 修复：加上这个才能用 malloc 和 free
 
 #define TAG "VMCore-ELF"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -36,8 +37,11 @@ void load_elf_segments(const char* path) {
         Elf64_Phdr ph = phdrs[i];
         
         if (ph.p_type == PT_LOAD) {
-            LOGI("发现 PT_LOAD 段: vaddr=0x%lx, filesz=%ld, memsz=%ld", 
-                 ph.p_vaddr, ph.p_filesz, ph.p_memsz);
+            // 修复：强转为 unsigned long long，消除格式化警告
+            LOGI("发现 PT_LOAD 段: vaddr=0x%llx, filesz=%llu, memsz=%llu", 
+                 (unsigned long long)ph.p_vaddr, 
+                 (unsigned long long)ph.p_filesz, 
+                 (unsigned long long)ph.p_memsz);
                  
             size_t map_size = (ph.p_memsz + page_size - 1) & ~(page_size - 1);
 
