@@ -1,12 +1,13 @@
 package com.example.vmcore
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import java.io.File
+import dalvik.system.DexClassLoader
 
 class MainActivity : Activity() {
     companion object {
@@ -15,7 +16,7 @@ class MainActivity : Activity() {
         }
     }
 
-    // 注意返回值变成了 String
+    // JNI 接口
     external fun loadElfNative(apkPath: String): String
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,26 +28,46 @@ class MainActivity : Activity() {
         }
 
         val tv = TextView(this).apply {
-            text = "点击下方按钮，启动底层内存映射。"
+            text = "LibOS 核心功能测试台\n请按顺序点击下方按钮"
             textSize = 16f
-            setPadding(0, 0, 0, 40)
+            setPadding(0, 0, 0, 30)
         }
 
-        val btnTest = Button(this).apply {
-            text = "执行底层 ELF 解析"
+        // 按钮 1：底层 ELF 解析
+        val btnElf = Button(this).apply {
+            text = "1. 执行底层 ELF 解析"
             setOnClickListener {
-                // 读取系统底层库测试
-                val targetSoPath = "/system/lib64/libc.so" 
-                val file = File(targetSoPath)
-                
-                val resultText = if (file.exists()) {
-                    loadElfNative(targetSoPath)
-                } else {
-                    loadElfNative(applicationInfo.nativeLibraryDir + "/libvmcore.so")
+                tv.text = loadElfNative("/system/lib64/libc.so")
+            }
+        }
+
+        // 按钮 2：Dex 动态加载
+        val btnDex = Button(this).apply {
+            text = "2. 测试 Dex 动态加载"
+            setOnClickListener {
+                try {
+                    val apkPath = applicationInfo.sourceDir
+                    val dexOutputDir = getDir("dex", 0).absolutePath
+                    
+                    val classLoader = DexClassLoader(apkPath, dexOutputDir, null, classLoader)
+                    val targetClass = classLoader.loadClass("com.example.vmcore.MainActivity")
+                    
+                    tv.text = "========== Dex 加载成功 ==========\n" +
+                            "目标 APK: $apkPath\n" +
+                            "成功在沙盒环境中找到类:\n" +
+                            targetClass.name
+                } catch (e: Exception) {
+                    tv.text = "Dex 加载失败: ${e.message}"
                 }
-                
-                // 直接把底层返回的结果贴在屏幕上！
-                tv.text = resultText
+            }
+        }
+
+        // 按钮 3：启动代理 StubActivity
+        val btnStub = Button(this).apply {
+            text = "3. 启动代理 StubActivity"
+            setOnClickListener {
+                val intent = Intent(this@MainActivity, StubActivity::class.java)
+                startActivity(intent)
             }
         }
 
@@ -54,8 +75,11 @@ class MainActivity : Activity() {
             addView(tv)
         }
 
-        layout.addView(btnTest)
+        layout.addView(btnElf)
+        layout.addView(btnDex)
+        layout.addView(btnStub)
         layout.addView(scrollView)
+        
         setContentView(layout)
     }
 }
