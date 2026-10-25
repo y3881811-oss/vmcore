@@ -6,8 +6,8 @@ on:
     tags:
       - 'v*'
   schedule:
-    - cron: '0 12 * * *' # 每天北京时间 20:00
-  workflow_dispatch: # 允许手动点击或命令行触发
+    - cron: '0 12 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,14 +23,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK and NDK
+      # 初始化环境，跳过默认安装废弃的 tools
+      - name: Setup Android SDK Environment
         uses: android-actions/setup-android@v3
+        with:
+          packages: '' 
 
-      # 核心修复：利用 yes | 自动输入 y 接受协议，然后再安装
-      - name: Install NDK and CMake
+      # 手动全量安装 + 自动接受协议
+      - name: Install NDK, CMake and Platform Tools
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          sdkmanager --install "platform-tools" "ndk;26.1.10909125" "cmake;3.22.1"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
